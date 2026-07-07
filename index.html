@@ -18,14 +18,15 @@
 <body>
 
 <!-- ===== LOGIN OVERLAY ===== -->
-<div class="login-overlay" id="login-overlay" style="position:fixed; top:0; left:0; width:100%; height:100%; background:var(--bg); z-index:9999; display:flex; align-items:center; justify-content:center;">
+<div class="login-overlay" id="login-overlay" style="position:fixed; top:0; left:0; width:100%; height:100%; background:linear-gradient(135deg, #f26522, #00467f); z-index:9999; display:flex; align-items:center; justify-content:center;">
   <div class="login-box" style="background:#fff; padding:40px; border-radius:16px; border-top: 5px solid var(--accent); text-align:center; box-shadow:0 10px 30px rgba(0,0,0,0.1); max-width:400px; margin:0 auto;">
-    <img src="https://donhang.ghn.vn/static/media/logo.2ab9ee21.png" alt="GHN" style="height:48px; margin-bottom:20px;">
+    <img src="https://khachhang.ghn.vn/assets/images/logo-ghn.png" alt="GHN" style="height:48px; margin-bottom:20px;">
     <h2 style="color:#1e293b; margin-bottom:10px; font-weight:800;">Hệ thống Dashboard</h2>
-    <p style="color:#64748b; font-size:14px; margin-bottom:24px;">Đăng nhập bằng tài khoản nội bộ @ghn.vn</p>
+    <div style="background:rgba(239,68,68,.08); color:var(--red); padding:12px; border-radius:8px; border:1px solid rgba(239,68,68,.2); font-size:13px; font-weight:600; margin-bottom:24px;">
+      ⚠️ CẢNH BÁO BẢO MẬT:<br>Chỉ cho phép tài khoản nội bộ @ghn.vn
+    </div>
     <div id="google-login-container" style="display:flex; justify-content:center; min-height: 50px;"></div>
-    <button id="dev-bypass-btn" style="margin-top:20px;width:100%;padding:14px;background:linear-gradient(135deg,var(--card2),var(--border));color:var(--text2);border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:13px;transition:.2s;font-family:inherit">[Dev] Bypass (Testing only)</button>
-    <div id="auth-err" style="color:var(--red);font-size:13px;margin-top:14px;display:none;background:rgba(239,68,68,.08);padding:10px;border-radius:8px;border:1px solid rgba(239,68,68,.2)">❌ Tài khoản không có quyền truy cập! Vui lòng dùng @ghn.vn</div>
+    <div id="auth-err" style="color:var(--red);font-size:13px;margin-top:14px;display:none;font-weight:600">❌ Tài khoản không hợp lệ!</div>
   </div>
 </div>
 
@@ -38,8 +39,7 @@
 
 
 <!-- ===== MAIN LAYOUT ===== -->
-<div class="layout" id="app" style="display:none">
-
+<div class="layout" id="app" style="display:none; width: 100%; background: var(--bg);">
   <!-- SIDEBAR -->
   <aside class="sidebar">
     <div class="logo">🚛 Sorting Daily</div>

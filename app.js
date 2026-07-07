@@ -69,9 +69,7 @@ window.onload = function () {
         }
     }
 
-    document.getElementById('dev-bypass-btn')?.addEventListener('click', () => {
-        loginSuccess();
-    });
+
 
     document.getElementById('logout-btn')?.addEventListener('click', () => {
         localStorage.removeItem('ghn_user');
