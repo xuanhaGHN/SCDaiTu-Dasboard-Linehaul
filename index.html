@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dashboard Sorting – Kho Trung Chuyển HN02</title>
+<meta name="description" content="Dashboard phân tích dữ liệu xe nhập xuất Kho Trung Chuyển Hà Nội 02">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://accounts.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://docs.google.com https://*.googleusercontent.com https://accounts.google.com; frame-src 'self' https://accounts.google.com;">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+
+<!-- ===== LOGIN OVERLAY ===== -->
+<div class="login-overlay" id="login-overlay" style="position:fixed; top:0; left:0; width:100%; height:100%; background:var(--bg); z-index:9999; display:flex; align-items:center; justify-content:center;">
+  <div class="login-box" style="background:#fff; padding:40px; border-radius:16px; border-top: 5px solid var(--accent); text-align:center; box-shadow:0 10px 30px rgba(0,0,0,0.1); max-width:400px; margin:0 auto;">
+    <img src="https://donhang.ghn.vn/static/media/logo.2ab9ee21.png" alt="GHN" style="height:48px; margin-bottom:20px;">
+    <h2 style="color:#1e293b; margin-bottom:10px; font-weight:800;">Hệ thống Dashboard</h2>
+    <p style="color:#64748b; font-size:14px; margin-bottom:24px;">Đăng nhập bằng tài khoản nội bộ @ghn.vn</p>
+    <div id="google-login-container" style="display:flex; justify-content:center; min-height: 50px;"></div>
+    <button id="dev-bypass-btn" style="margin-top:20px;width:100%;padding:14px;background:linear-gradient(135deg,var(--card2),var(--border));color:var(--text2);border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:13px;transition:.2s;font-family:inherit">[Dev] Bypass (Testing only)</button>
+    <div id="auth-err" style="color:var(--red);font-size:13px;margin-top:14px;display:none;background:rgba(239,68,68,.08);padding:10px;border-radius:8px;border:1px solid rgba(239,68,68,.2)">❌ Tài khoản không có quyền truy cập! Vui lòng dùng @ghn.vn</div>
+  </div>
+</div>
+
+<!-- ===== LOADING ===== -->
+<div class="loading-overlay" id="loading" style="display:none">
+  <div class="spinner"></div>
+  <div style="color:var(--text2);font-size:14px" id="loading-text">Đang tải dữ liệu...</div>
+</div>
+
+
+
+<!-- ===== MAIN LAYOUT ===== -->
+<div class="layout" id="app" style="display:none">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="logo">🚛 Sorting Daily</div>
+
+    <div class="nav-section">Phân tích</div>
+    <div class="nav-item active" id="nav-overview">📊 Tổng quan</div>
+    <div class="nav-item" id="nav-charts">📈 Biểu đồ Chi tiết</div>
+    <div class="nav-item" id="nav-production">📦 Sản lượng & KG</div>
+
+    <div class="nav-section">Hệ thống</div>
+    <div class="nav-item" id="nav-alerts">🔔 Cảnh báo</div>
+
+    <div style="margin-top:auto;padding:16px 12px 8px;border-top:1px solid var(--border)">
+      <div style="font-size:11px;color:var(--text2)">
+        <div id="sidebar-stoppoint-badge" style="font-weight:600;color:var(--text);margin-bottom:2px">Tất cả kho</div>
+        <div id="date-badge-sidebar" style="margin-top:2px"></div>
+        <div id="data-status" style="margin-top:6px;font-size:10px"></div>
+      </div>
+      <button id="logout-btn" style="margin-top:16px; width:100%; padding:10px; background:var(--card2); color:var(--text2); border:1px solid var(--border); border-radius:8px; cursor:pointer; font-weight:600; transition:.2s">Đăng xuất</button>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <main class="main" id="main-content">
+    <div class="header">
+      <h1 id="page-title">📊 Tổng quan Sorting</h1>
+      <div class="header-right">
+        <!-- Global filter -->
+        <div class="date-filter">
+          <select id="filter-stoppoint" class="date-input" style="max-width:180px; text-overflow:ellipsis">
+            <option value="">Tất cả kho</option>
+          </select>
+          <select id="filter-type" class="date-input" style="max-width:120px;">
+            <option value="ALL">Tất cả Nhập/Xuất</option>
+            <option value="Nhập">Nhập</option>
+            <option value="Xuất">Xuất</option>
+          </select>
+          <input type="date" id="filter-start" class="date-input">
+          <span style="color:var(--text2);font-size:12px">–</span>
+          <input type="date" id="filter-end" class="date-input">
+          <button id="reset-global-filters-btn" class="filter-btn" style="background:var(--card2);color:var(--text2);border:1px solid var(--border)">↩</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== PAGE: OVERVIEW ===== -->
+    <div id="page-overview">
+      <!-- KPI cards -->
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">Tổng xe Nhập</div>
+          <div class="kpi-value" id="kpi-in">0</div>
+          <div class="kpi-sub">lượt xe nhập kho</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Tổng xe Xuất</div>
+          <div class="kpi-value" id="kpi-out">0</div>
+          <div class="kpi-sub">lượt xe xuất kho</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Giờ Cao điểm</div>
+          <div class="kpi-value" id="kpi-peak">—</div>
+          <div class="kpi-sub" id="kpi-peak-sub"></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Loại xe Phổ biến</div>
+          <div class="kpi-value" id="kpi-type">—</div>
+          <div class="kpi-sub" id="kpi-type-sub"></div>
+        </div>
+      </div>
+
+      <!-- Charts row 1 -->
+      <div class="charts-grid">
+        <div class="chart-card">
+          <div class="chart-title">
+            Nhập / Xuất theo Giờ
+            <select id="hourly-date"></select>
+          </div>
+          <div class="chart-container"><canvas id="hourlyChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Phân bổ Trọng tải Xe</div>
+          <div class="chart-container"><canvas id="vehicleChart"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Charts row 2 -->
+      <div class="charts-grid">
+        <div class="chart-card">
+          <div class="chart-title">Xu hướng Nhập / Xuất theo Ngày</div>
+          <div class="chart-container"><canvas id="dailyChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Phân tích theo Loại Tuyến</div>
+          <div class="chart-container"><canvas id="laneChart"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Daily comparison table -->
+      <div class="table-section">
+        <div class="chart-title">📊 So sánh Chi tiết giữa các Ngày</div>
+        <div style="overflow-x:auto">
+          <table class="compare-table">
+            <thead>
+              <tr>
+                <th>Ngày</th><th>Xe Nhập</th><th>Xe Xuất</th><th>Tổng xe</th>
+                <th>KG ước (tấn)</th><th>Giờ cao điểm</th><th>Xe chủ lực</th>
+                <th>Trend Xe</th>
+              </tr>
+            </thead>
+            <tbody id="compare-daily"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Heatmap -->
+      <div class="chart-card" style="margin-bottom:28px">
+        <div class="chart-title">
+          🔥 Heatmap: Số lượng Xe theo Giờ × Ngày
+        </div>
+        <div style="overflow-x:auto"><table class="heatmap-table" id="heatmap-table"></table></div>
+      </div>
+    </div><!-- /page-overview -->
+
+    <!-- ===== PAGE: CHARTS ===== -->
+    <div id="page-charts" class="hidden">
+      <!-- Advanced filters -->
+      <div class="chart-card" style="margin-bottom:20px">
+        <div class="chart-title">🔎 Bộ lọc Nâng cao</div>
+        <div class="filter-row">
+          <div class="filter-chip">Tuyến:
+            <select id="chart-filter-lane" style="border:0;background:transparent;font-size:13px;color:var(--text)">
+              <option value="">Tất cả</option>
+            </select>
+          </div>
+          <div class="filter-chip">Trọng tải:
+            <select id="chart-filter-vehicle" style="border:0;background:transparent;font-size:13px;color:var(--text)">
+              <option value="">Tất cả</option>
+            </select>
+          </div>
+          <div class="filter-chip">Stoppoint:
+            <select id="chart-filter-stop" style="border:0;background:transparent;font-size:13px;color:var(--text)">
+              <option value="">Tất cả</option>
+            </select>
+          </div>
+          <div class="filter-chip">Giờ từ:
+            <select id="chart-filter-hour-from" style="border:0;background:transparent;font-size:13px;color:var(--text)">
+              <option value="">0h</option>
+            </select>
+          </div>
+          <div class="filter-chip">đến:
+            <select id="chart-filter-hour-to" style="border:0;background:transparent;font-size:13px;color:var(--text)">
+              <option value="">23h</option>
+            </select>
+          </div>
+          <button id="reset-detail-filters-btn" class="filter-btn" style="background:var(--card2);color:var(--text2);border:1px solid var(--border);font-size:12px">↩ Reset</button>
+        </div>
+        <div id="filter-summary" style="margin-top:10px;font-size:12px;color:var(--text2)"></div>
+      </div>
+
+      <div class="charts-grid">
+        <div class="chart-card">
+          <div class="chart-title">Chi tiết theo Giờ (Đã lọc)</div>
+          <div class="chart-container"><canvas id="detailHourly"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Tỉ trọng Trọng tải (Đã lọc)</div>
+          <div class="chart-container"><canvas id="detailVehicle"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Lane by day -->
+      <div class="chart-card" style="margin-bottom:20px">
+        <div class="chart-title">
+          🛣️ Tỷ trọng Xe theo Tuyến – theo Ngày
+        </div>
+        <div class="chart-container" style="height:320px"><canvas id="laneDayChart"></canvas></div>
+      </div>
+
+      <!-- Vehicle hour compare -->
+      <div class="chart-card" style="margin-bottom:20px">
+        <div class="chart-title">
+          🚛 So sánh Loại xe theo Giờ giữa 2 Ngày
+          <div class="filter-row" style="gap:8px">
+            <select id="veh-hour-day1" style="font-size:12px"></select>
+            <span style="color:var(--text2);font-size:12px">vs</span>
+            <select id="veh-hour-day2" style="font-size:12px"></select>
+          </div>
+        </div>
+        <div class="chart-container" style="height:320px"><canvas id="vehHourCompare"></canvas></div>
+      </div>
+
+      <!-- Multi-day overlay -->
+      <div class="chart-card" style="margin-bottom:20px">
+        <div class="chart-title">
+          📊 So sánh Tổng xe theo Giờ – Chồng nhiều Ngày
+          <select id="multi-day-count" style="font-size:12px">
+            <option value="3">3 ngày gần nhất</option>
+            <option value="5">5 ngày gần nhất</option>
+            <option value="7" selected>7 ngày gần nhất</option>
+            <option value="0">Tất cả</option>
+          </select>
+        </div>
+        <div class="chart-container" style="height:320px"><canvas id="multiDayChart"></canvas></div>
+      </div>
+
+      <!-- Route table -->
+      <div class="table-section">
+        <div class="chart-card">
+          <div class="chart-title">🤝 Tỷ trọng Xe GHN và Xe NCC</div>
+          <div class="chart-container" style="height:250px"><canvas id="partnerChart"></canvas></div>
+          <table class="data-table" style="margin-top:20px">
+            <thead>
+              <tr><th>NGÀY</th><th>XE GHN</th><th>XE NCC</th><th>TỔNG CỘNG</th></tr>
+            </thead>
+            <tbody id="partner-table"></tbody>
+          </table>
+        </div>
+      </div>
+    </div><!-- /page-charts -->
+
+    <!-- ===== PAGE: PRODUCTION ===== -->
+    <div id="page-production" class="hidden">
+      <!-- KPI production -->
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">Tổng KG Ước tính</div>
+          <div class="kpi-value" id="prod-total-kg">0</div>
+          <div class="kpi-sub">tấn hàng hóa</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">TB KG / Ngày</div>
+          <div class="kpi-value" id="prod-avg-kg">0</div>
+          <div class="kpi-sub">tấn/ngày</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">TB KG / Xe</div>
+          <div class="kpi-value" id="prod-avg-per-truck">0</div>
+          <div class="kpi-sub">tấn/lượt xe</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Ngày Tải nặng nhất</div>
+          <div class="kpi-value" id="prod-peak-day">—</div>
+          <div class="kpi-sub" id="prod-peak-day-sub"></div>
+        </div>
+      </div>
+
+      <!-- Charts row -->
+      <div class="charts-grid">
+        <div class="chart-card">
+          <div class="chart-title">
+            KG Nhập / Xuất theo Ngày (ước tính)
+          </div>
+          <div class="chart-container"><canvas id="prodDailyKgChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Phân bổ KG theo Trọng tải</div>
+          <div class="chart-container"><canvas id="prodVehicleKgChart"></canvas></div>
+        </div>
+      </div>
+
+      <!-- KG by hour -->
+      <div class="chart-card" style="margin-bottom:20px">
+        <div class="chart-title">
+          ⏰ Phân bổ KG theo Khung giờ
+          <select id="prod-day-filter" style="font-size:12px">
+            <option value="">Tất cả ngày</option>
+          </select>
+        </div>
+        <div class="chart-container" style="height:300px"><canvas id="prodHourChart"></canvas></div>
+      </div>
+
+      <!-- Top routes by KG -->
+        <div class="chart-card">
+          <div class="chart-title">⏰ Bảng Phân bổ KG theo Giờ</div>
+          <table class="data-table">
+            <thead>
+              <tr><th>GIỜ</th><th>SỐ LƯỢNG XE</th><th>TỔNG KG (TẤN)</th><th>TỶ TRỌNG %</th></tr>
+            </thead>
+            <tbody id="prod-hour-table"></tbody>
+          </table>
+        </div>
+
+
+    </div><!-- /page-production -->
+
+    <!-- ===== PAGE: ALERTS ===== -->
+    <div id="page-alerts" class="hidden">
+      <div class="section-title">🔔 Hệ thống Cảnh báo</div>
+
+      <!-- Alert KPI -->
+      <div class="kpi-grid" style="margin-bottom:20px">
+        <div class="kpi-card">
+          <div class="kpi-label">Xe Nhập (tổng)</div>
+          <div class="kpi-value" style="color:var(--accent)" id="alert-total-in">0</div>
+          <div class="kpi-sub">lượt xe nhập</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Xe Xuất (tổng)</div>
+          <div class="kpi-value" style="color:var(--accent2)" id="alert-total-out">0</div>
+          <div class="kpi-sub">lượt xe xuất</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">KG Ước tính Tổng</div>
+          <div class="kpi-value" style="color:var(--orange)" id="alert-total-kg">0</div>
+          <div class="kpi-sub">tấn hàng</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">TB KG / Ngày</div>
+          <div class="kpi-value" style="color:var(--green)" id="alert-avg-kg">0</div>
+          <div class="kpi-sub">tấn/ngày</div>
+        </div>
+      </div>
+
+      <!-- Alert cards -->
+      <div class="risk-grid" style="margin-bottom:20px">
+        <div class="risk-card danger">
+          <div class="risk-badge danger">Giờ cao bất thường</div>
+          <div class="kpi-value" style="color:var(--red)" id="alert-hourly-count">0</div>
+          <div class="kpi-sub">khung giờ vượt TB >30%</div>
+        </div>
+        <div class="risk-card warning">
+          <div class="risk-badge warning">Ngày cao bất thường</div>
+          <div class="kpi-value" style="color:var(--orange)" id="alert-daily-count">0</div>
+          <div class="kpi-sub">ngày vượt TB >20%</div>
+        </div>
+        <div class="risk-card safe">
+          <div class="risk-badge safe">Bình thường</div>
+          <div class="kpi-value" style="color:var(--green)" id="alert-safe-count">0</div>
+          <div class="kpi-sub">ngày hoạt động ổn định</div>
+        </div>
+      </div>
+
+      <!-- Peak hour table -->
+      <div class="chart-card" style="margin-bottom:20px">
+        <div class="chart-title">🕐 Phân tích Khung giờ Cao điểm</div>
+        <div style="overflow-x:auto">
+          <table class="compare-table">
+            <thead><tr>
+              <th>Khung giờ</th><th>TB xe</th><th>TB Nhập</th><th>TB Xuất</th>
+              <th>KG ước TB (tấn)</th><th>Max xe</th><th>Ngày cao nhất</th><th>Mức độ</th>
+            </tr></thead>
+            <tbody id="peak-hour-table"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Alert details -->
+      <div class="chart-card">
+        <div class="chart-title" style="margin-bottom:12px">📋 Chi tiết Cảnh báo</div>
+        <div class="alert-list" id="alert-list"></div>
+      </div>
+    </div><!-- /page-alerts -->
+
+  </main>
+</div><!-- /layout -->
+
+<script src="app.js"></script>
+</body>
+</html>
