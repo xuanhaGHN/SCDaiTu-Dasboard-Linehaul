@@ -238,15 +238,15 @@ function updateDashboard() {
     const totalIn = filteredData.filter(d => d.type === "Nhập").length;
     const totalOut = filteredData.filter(d => d.type === "Xuất").length;
     
-    if(document.getElementById('kpi-in')) document.getElementById('kpi-in').textContent = totalIn;
-    if(document.getElementById('kpi-out')) document.getElementById('kpi-out').textContent = totalOut;
+    if(document.getElementById('kpi-in')) document.getElementById('kpi-in').textContent = totalIn.toLocaleString('vi-VN');
+    if(document.getElementById('kpi-out')) document.getElementById('kpi-out').textContent = totalOut.toLocaleString('vi-VN');
     
     // Total weight (already in tons)
     const weightIn = filteredData.filter(d => d.type === "Nhập").reduce((s, d) => s + d.weight, 0);
     const weightOut = filteredData.filter(d => d.type === "Xuất").reduce((s, d) => s + d.weight, 0);
     
-    if(document.getElementById('kpi-peak')) document.getElementById('kpi-peak').textContent = (weightIn+weightOut).toFixed(1) + "t";
-    if(document.getElementById('kpi-type')) document.getElementById('kpi-type').textContent = (totalIn+totalOut);
+    if(document.getElementById('kpi-peak')) document.getElementById('kpi-peak').textContent = (weightIn+weightOut).toLocaleString('vi-VN', {maximumFractionDigits:1}) + "t";
+    if(document.getElementById('kpi-type')) document.getElementById('kpi-type').textContent = (totalIn+totalOut).toLocaleString('vi-VN');
     
     // Group by hour
     const hours = {};
@@ -271,7 +271,7 @@ function updateDashboard() {
         hourLabels.forEach(h => {
             if (hours[h].in + hours[h].out > avg * 1.3) spikeCount++;
         });
-        if(document.getElementById('alert-hourly-count')) document.getElementById('alert-hourly-count').textContent = spikeCount;
+        if(document.getElementById('alert-hourly-count')) document.getElementById('alert-hourly-count').textContent = spikeCount.toLocaleString('vi-VN');
     }
 
     // 2. vehicleChart: Phân bố Trọng tải Xe
@@ -343,10 +343,10 @@ function updateDashboard() {
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td>${date}</td>
-                <td>${stat.in}</td>
-                <td>${stat.out}</td>
-                <td style="font-weight:700; color:var(--accent)">${total}</td>
-                <td>${weightTons}</td>
+                <td>${stat.in.toLocaleString('vi-VN')}</td>
+                <td>${stat.out.toLocaleString('vi-VN')}</td>
+                <td style="font-weight:700; color:var(--accent)">${total.toLocaleString('vi-VN')}</td>
+                <td>${stat.weight.toLocaleString('vi-VN', {maximumFractionDigits:1})}</td>
                 <td>${peakHour}</td>
                 <td>${topV}</td>
                 <td>${trend}</td>
@@ -480,9 +480,9 @@ function updateDashboard() {
     // TAB: SẢN LƯỢNG & KG
     // ==========================================
     const prodTotalKg = filteredData.reduce((s,d) => s + d.weight, 0);
-    if(document.getElementById('prod-total-kg')) document.getElementById('prod-total-kg').textContent = prodTotalKg.toFixed(1);
-    if(document.getElementById('prod-avg-kg')) document.getElementById('prod-avg-kg').textContent = (prodTotalKg / (dayLabels.length||1)).toFixed(1);
-    if(document.getElementById('prod-avg-per-truck')) document.getElementById('prod-avg-per-truck').textContent = (prodTotalKg / (filteredData.length||1)).toFixed(1);
+    if(document.getElementById('prod-total-kg')) document.getElementById('prod-total-kg').textContent = prodTotalKg.toLocaleString('vi-VN', {maximumFractionDigits:1});
+    if(document.getElementById('prod-avg-kg')) document.getElementById('prod-avg-kg').textContent = (prodTotalKg / (dayLabels.length||1)).toLocaleString('vi-VN', {maximumFractionDigits:1});
+    if(document.getElementById('prod-avg-per-truck')) document.getElementById('prod-avg-per-truck').textContent = (prodTotalKg / (filteredData.length||1)).toLocaleString('vi-VN', {maximumFractionDigits:1});
     let peakDay = "-"; let maxDayW = 0;
     dayLabels.forEach(d => { if(dayStats[d].weight > maxDayW) { maxDayW = dayStats[d].weight; peakDay = d; } });
     if(document.getElementById('prod-peak-day')) document.getElementById('prod-peak-day').textContent = peakDay;
@@ -523,17 +523,17 @@ function updateDashboard() {
             const w = hourWeight[h] || 0;
             const v = prodData.filter(d => d.hour === h).length;
             const pct = totalW > 0 ? ((w / totalW) * 100).toFixed(1) : 0;
-            prodHourTable.innerHTML += `<tr><td>${h.substring(0,2)}h</td><td>${v}</td><td style="color:var(--orange)">${w.toFixed(1)}</td><td>${pct}%</td></tr>`;
+            prodHourTable.innerHTML += `<tr><td>${h.substring(0,2)}h</td><td>${v.toLocaleString('vi-VN')}</td><td style="color:var(--orange)">${w.toLocaleString('vi-VN', {maximumFractionDigits:1})}</td><td>${pct}%</td></tr>`;
         });
     }
 
     // ==========================================
     // TAB: CẢNH BÁO
     // ==========================================
-    if(document.getElementById('alert-total-in')) document.getElementById('alert-total-in').textContent = totalIn;
-    if(document.getElementById('alert-total-out')) document.getElementById('alert-total-out').textContent = totalOut;
-    if(document.getElementById('alert-total-kg')) document.getElementById('alert-total-kg').textContent = (weightIn+weightOut).toFixed(1);
-    if(document.getElementById('alert-avg-kg')) document.getElementById('alert-avg-kg').textContent = ((weightIn+weightOut) / (dayLabels.length||1)).toFixed(1);
+    if(document.getElementById('alert-total-in')) document.getElementById('alert-total-in').textContent = totalIn.toLocaleString('vi-VN');
+    if(document.getElementById('alert-total-out')) document.getElementById('alert-total-out').textContent = totalOut.toLocaleString('vi-VN');
+    if(document.getElementById('alert-total-kg')) document.getElementById('alert-total-kg').textContent = (weightIn+weightOut).toLocaleString('vi-VN', {maximumFractionDigits:1});
+    if(document.getElementById('alert-avg-kg')) document.getElementById('alert-avg-kg').textContent = ((weightIn+weightOut) / (dayLabels.length||1)).toLocaleString('vi-VN', {maximumFractionDigits:1});
 
     const peakTable = document.getElementById('peak-hour-table');
     if (peakTable) {
@@ -543,7 +543,7 @@ function updateDashboard() {
             let peakHour = "-"; let maxH = 0;
             for(let h in dayStats[date].hours) { if(dayStats[date].hours[h] > maxH) { maxH = dayStats[date].hours[h]; peakHour = h; } }
             if (maxH > avgTotal * 1.3) {
-                peakTable.innerHTML += `<tr><td>${date}</td><td style="color:var(--red)">${peakHour}</td><td>${maxH}</td><td><span style="color:var(--red)">Vượt mức</span></td></tr>`;
+                peakTable.innerHTML += `<tr><td>${date}</td><td style="color:var(--red)">${peakHour}</td><td>${maxH.toLocaleString('vi-VN')}</td><td><span style="color:var(--red)">Vượt mức</span></td></tr>`;
             }
         });
     }
