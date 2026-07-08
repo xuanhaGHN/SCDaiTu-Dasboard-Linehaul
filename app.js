@@ -123,10 +123,20 @@ function initTabs() {
 
 function initFilters() {
     // Force clear browser cached values on load
-    const resetIds = ['filter-stoppoint', 'filter-type', 'filter-start', 'filter-end', 'chart-filter-lane', 'chart-filter-stop', 'chart-filter-hour-from', 'chart-filter-hour-to', 'prod-day-filter'];
+    const resetIds = ['filter-stoppoint', 'filter-type', 'chart-filter-lane', 'chart-filter-stop', 'chart-filter-hour-from', 'chart-filter-hour-to', 'prod-day-filter'];
     resetIds.forEach(id => {
         if (document.getElementById(id)) document.getElementById(id).value = id.includes('hour-') ? "" : "ALL";
     });
+
+    const startEl = document.getElementById('filter-start');
+    const endEl = document.getElementById('filter-end');
+    if (startEl && endEl) {
+        const today = new Date();
+        const lastWeek = new Date();
+        lastWeek.setDate(today.getDate() - 7);
+        startEl.valueAsDate = lastWeek;
+        endEl.valueAsDate = today;
+    }
 
     const triggerUpdateIds = ['filter-stoppoint', 'filter-type', 'filter-start', 'filter-end'];
     const triggerRenderIds = ['chart-filter-lane', 'chart-filter-stop', 'chart-filter-vehicle', 'chart-filter-hour-from', 'chart-filter-hour-to', 'prod-day-filter'];
