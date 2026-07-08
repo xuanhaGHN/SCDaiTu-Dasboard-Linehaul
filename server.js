@@ -35,7 +35,12 @@ app.use(cors({
 
 // Middleware to verify session
 const requireAuth = (req, res, next) => {
-    const token = req.cookies.ghn_session;
+    let token = req.cookies.ghn_session;
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        token = authHeader.split(' ')[1];
+    }
+    
     if (!token) {
         return res.status(401).json({ error: 'Unauthorized: No session token provided' });
     }
@@ -85,7 +90,7 @@ app.post('/api/auth', async (req, res) => {
             maxAge: 8 * 60 * 60 * 1000 // 8 hours
         });
 
-        res.json({ success: true, email: payload.email, name: payload.name });
+        res.json({ success: true, email: payload.email, name: payload.name, token: sessionToken });
     } catch (error) {
         console.error('Auth verification failed:', error);
         res.status(401).json({ error: 'Unauthorized: Invalid Google token' });

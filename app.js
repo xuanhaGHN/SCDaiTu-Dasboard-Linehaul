@@ -41,6 +41,7 @@ window.handleCredentialResponse = async function (response) {
         const data = await res.json();
         if (res.ok && data.success) {
             localStorage.setItem('ghn_user', data.email);
+            localStorage.setItem('ghn_token', data.token);
             loginSuccess();
         } else {
             showAuthError(data.error || '❌ Đăng nhập thất bại. Vui lòng thử lại.');
@@ -77,8 +78,13 @@ window.onload = function () {
 
 
     document.getElementById('logout-btn')?.addEventListener('click', async () => {
-        await fetch(`${BACKEND_URL}/api/logout`, { method: 'POST', credentials: 'include' });
+        const token = localStorage.getItem('ghn_token');
+        await fetch(`${BACKEND_URL}/api/logout`, { 
+            method: 'POST', 
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
         localStorage.removeItem('ghn_user');
+        localStorage.removeItem('ghn_token');
         location.reload();
     });
 
@@ -141,26 +147,38 @@ function initFilters() {
     });
 }
 
-function loadData() {
-    Papa.parse(`${BACKEND_URL}/api/data`, {
-        download: true,
-        withCredentials: true,
-        header: true,
-        skipEmptyLines: true,
-        complete: function (results) {
-            processData(results.data);
-            document.getElementById('loading').style.display = 'none';
-        },
-        error: function (err, file, inputElem, reason) {
-            console.error("Lỗi tải dữ liệu", err);
-            document.getElementById('loading').style.display = 'none';
-            if (reason && reason.includes('401')) {
-                // Session expired or invalid
-                localStorage.removeItem('ghn_user');
-                location.reload();
+async function loadData() {
+    const token = localStorage.getItem('ghn_token');
+    if (!token) {
+        document.getElementById('loading').innerHTML = '❌ Phiên đăng nhập hết hạn. Vui lòng tải lại trang và đăng nhập lại.';
+        return;
+    }
+
+    try {
+        const response = await fetch(`${BACKEND_URL}/api/data`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (!response.ok) throw new Error('Data fetch failed');
+        
+        const csvText = await response.text();
+        
+        Papa.parse(csvText, {
+            header: true,
+            skipEmptyLines: true,
+            complete: function (results) {
+                processData(results.data);
+                document.getElementById('loading').style.display = 'none';
+            },
+            error: function (error) {
+                console.error('Lỗi khi tải dữ liệu:', error);
+                document.getElementById('loading').innerHTML = '❌ Lỗi phân tích dữ liệu. Vui lòng tải lại trang.';
             }
-        }
-    });
+        });
+    } catch (error) {
+        console.error('Lỗi khi tải dữ liệu:', error);
+        document.getElementById('loading').innerHTML = '❌ Lỗi tải dữ liệu. Vui lòng kiểm tra lại quyền truy cập.';
+    }
 }
 
 function processData(data) {
