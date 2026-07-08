@@ -31,9 +31,10 @@ function showAuthError(msg) {
 
 window.handleCredentialResponse = async function (response) {
     try {
-        const res = await fetch('/api/auth', {
+        const res = await fetch(`${BACKEND_URL}/api/auth`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
             body: JSON.stringify({ credential: response.credential })
         });
 
@@ -76,7 +77,7 @@ window.onload = function () {
 
 
     document.getElementById('logout-btn')?.addEventListener('click', async () => {
-        await fetch('/api/logout', { method: 'POST' });
+        await fetch(`${BACKEND_URL}/api/logout`, { method: 'POST', credentials: 'include' });
         localStorage.removeItem('ghn_user');
         location.reload();
     });
@@ -141,8 +142,9 @@ function initFilters() {
 }
 
 function loadData() {
-    Papa.parse('/api/data', {
+    Papa.parse(`${BACKEND_URL}/api/data`, {
         download: true,
+        withCredentials: true,
         header: true,
         skipEmptyLines: true,
         complete: function (results) {
