@@ -12,7 +12,7 @@
     content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://accounts.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://theme.hstatic.net; connect-src 'self' https://sc-dai-tu-dasboard-linehaul.vercel.app https://docs.google.com https://*.googleusercontent.com https://accounts.google.com; frame-src 'self' https://accounts.google.com;">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
     rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=2">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script
     src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
@@ -29,9 +29,8 @@
       style="background:#fff; padding:40px; border-radius:16px; border-top: 5px solid var(--accent); text-align:center; box-shadow:0 10px 30px rgba(0,0,0,0.1); max-width:400px; margin:0 auto;">
       <img src="https://theme.hstatic.net/200000472237/1001083717/14/logo.png?v=477" alt="GHN" style="height:48px; margin-bottom:20px;">
       <h2 style="color:#1e293b; margin-bottom:10px; font-weight:800;">Hệ thống Dashboard</h2>
-      <div
-        style="background:rgba(239,68,68,.08); color:var(--red); padding:12px; border-radius:8px; border:1px solid rgba(239,68,68,.2); font-size:13px; font-weight:600; margin-bottom:24px;">
-        ⚠️ CẢNH BÁO BẢO MẬT:<br>Chỉ cho phép tài khoản nội bộ @ghn.vn
+      <div style="background:rgba(14,165,233,.08); color:var(--accent2); padding:12px; border-radius:8px; border:1px solid rgba(14,165,233,.2); font-size:13px; font-weight:600; margin-bottom:24px;">
+        👋 Lưu ý:<br>Vui lòng đăng nhập bằng email nội bộ @ghn.vn
       </div>
       <div id="google-login-container" style="display:flex; justify-content:center; min-height: 50px;"></div>
       <div id="auth-err" style="color:var(--red);font-size:13px;margin-top:14px;display:none;font-weight:600">❌ Tài
@@ -63,13 +62,8 @@
       <div class="nav-item" id="nav-alerts">🔔 Cảnh báo</div>
 
       <div style="margin-top:auto;padding:16px 12px 8px;border-top:1px solid var(--border)">
-        <div style="font-size:11px;color:var(--text2)">
-          <div id="sidebar-stoppoint-badge" style="font-weight:600;color:var(--text);margin-bottom:2px">Tất cả kho</div>
-          <div id="date-badge-sidebar" style="margin-top:2px"></div>
-          <div id="data-status" style="margin-top:6px;font-size:10px"></div>
-        </div>
         <button id="logout-btn"
-          style="margin-top:16px; width:100%; padding:10px; background:var(--card2); color:var(--text2); border:1px solid var(--border); border-radius:8px; cursor:pointer; font-weight:600; transition:.2s">Đăng
+          style="width:100%; padding:10px; background:var(--card2); color:var(--text2); border:1px solid var(--border); border-radius:8px; cursor:pointer; font-weight:600; transition:.2s">Đăng
           xuất</button>
       </div>
     </aside>
