@@ -284,7 +284,7 @@ function updateDashboard() {
     const weightIn = filteredData.filter(d => d.type === "Nhập").reduce((s, d) => s + d.weight, 0);
     const weightOut = filteredData.filter(d => d.type === "Xuất").reduce((s, d) => s + d.weight, 0);
 
-    if (document.getElementById('kpi-peak')) document.getElementById('kpi-peak').textContent = (weightIn + weightOut).toLocaleString('vi-VN', { maximumFractionDigits: 1 }) + "t";
+    if (document.getElementById('kpi-peak')) document.getElementById('kpi-peak').textContent = Math.round(weightIn + weightOut).toLocaleString('vi-VN') + "t";
     if (document.getElementById('kpi-type')) document.getElementById('kpi-type').textContent = (totalIn + totalOut).toLocaleString('vi-VN');
 
     // Group by hour
