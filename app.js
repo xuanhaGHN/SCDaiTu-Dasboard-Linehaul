@@ -1,5 +1,5 @@
-
 // Globals
+const BACKEND_URL = "https://sc-dai-tu-dasboard-linehaul.vercel.app";
 const SHEET_URL = "https://docs.google.com/spreadsheets/d/1wdkjfAUmZfxczJQ72MJWySbN5qY9YWgxQjLkVRNsJYY/export?format=csv&gid=1730908608";
 const GOOGLE_CLIENT_ID = "196922761837-1u6n4e7196jtt96n5revbgg7ag0386ud.apps.googleusercontent.com";
 
