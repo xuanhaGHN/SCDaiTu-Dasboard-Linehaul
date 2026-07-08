@@ -7,42 +7,46 @@ let rawData = [];
 let filteredData = [];
 let charts = {};
 
-// Parse JWT token
-function parseJwt(token) {
-    try {
-        const base64Url = token.split('.')[1];
-        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-        }).join(''));
-        return JSON.parse(jsonPayload);
-    } catch (e) {
-        return null;
-    }
+// Helper for XSS escaping
+function escapeHTML(str) {
+    if (!str) return '';
+    return String(str).replace(/[&<>'"]/g,
+        tag => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            "'": '&#39;',
+            '"': '&quot;'
+        }[tag] || tag)
+    );
 }
 
 function showAuthError(msg) {
     const err = document.getElementById('auth-err');
-    if(err) {
+    if (err) {
         err.textContent = msg;
         err.style.display = 'block';
     }
 }
 
-window.handleCredentialResponse = function(response) {
-    const payload = parseJwt(response.credential);
-    if (!payload || !payload.email) {
-        showAuthError('❌ Đăng nhập thất bại. Vui lòng thử lại.');
-        return;
-    }
+window.handleCredentialResponse = async function (response) {
+    try {
+        const res = await fetch('/api/auth', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ credential: response.credential })
+        });
 
-    const email = payload.email;
-    if (email.endsWith('@ghn.vn')) {
-        localStorage.setItem('ghn_user', email);
-        loginSuccess();
-    } else {
-        showAuthError('❌ Tài khoản không có quyền truy cập! Vui lòng dùng @ghn.vn');
-        google.accounts.id.revoke(email, done => {});
+        const data = await res.json();
+        if (res.ok && data.success) {
+            localStorage.setItem('ghn_user', data.email);
+            loginSuccess();
+        } else {
+            showAuthError(data.error || '❌ Đăng nhập thất bại. Vui lòng thử lại.');
+            if (data.email) google.accounts.id.revoke(data.email, done => { });
+        }
+    } catch (e) {
+        showAuthError('❌ Lỗi kết nối tới máy chủ.');
     }
 };
 
@@ -64,14 +68,15 @@ window.onload = function () {
                 document.getElementById("google-login-container"),
                 { theme: "outline", size: "large", type: "standard", shape: "rectangular", text: "signin_with", logo_alignment: "left" }
             );
-        } catch(e) {
+        } catch (e) {
             console.error(e);
         }
     }
 
 
 
-    document.getElementById('logout-btn')?.addEventListener('click', () => {
+    document.getElementById('logout-btn')?.addEventListener('click', async () => {
+        await fetch('/api/logout', { method: 'POST' });
         localStorage.removeItem('ghn_user');
         location.reload();
     });
@@ -80,7 +85,7 @@ window.onload = function () {
     if (user && user.endsWith('@ghn.vn')) {
         loginSuccess();
     }
-    
+
     initTabs();
     initFilters();
 };
@@ -98,13 +103,13 @@ function initTabs() {
         item.addEventListener('click', () => {
             navItems.forEach(n => n.classList.remove('active'));
             item.classList.add('active');
-            
+
             Object.values(pages).forEach(p => {
                 const el = document.getElementById(p);
-                if(el) el.classList.add('hidden');
+                if (el) el.classList.add('hidden');
             });
             const target = document.getElementById(pages[item.id]);
-            if(target) target.classList.remove('hidden');
+            if (target) target.classList.remove('hidden');
         });
     });
 }
@@ -113,47 +118,52 @@ function initFilters() {
     // Force clear browser cached values on load
     const resetIds = ['filter-stoppoint', 'filter-type', 'filter-start', 'filter-end', 'chart-filter-lane', 'chart-filter-stop', 'chart-filter-hour-from', 'chart-filter-hour-to', 'prod-day-filter'];
     resetIds.forEach(id => {
-        if(document.getElementById(id)) document.getElementById(id).value = id.includes('hour-') ? "" : "ALL";
+        if (document.getElementById(id)) document.getElementById(id).value = id.includes('hour-') ? "" : "ALL";
     });
 
     const triggerUpdateIds = ['filter-stoppoint', 'filter-type', 'filter-start', 'filter-end'];
     const triggerRenderIds = ['chart-filter-lane', 'chart-filter-stop', 'chart-filter-vehicle', 'chart-filter-hour-from', 'chart-filter-hour-to', 'prod-day-filter'];
-    
+
     [...triggerUpdateIds, ...triggerRenderIds].forEach(id => {
         document.getElementById(id)?.addEventListener('change', () => {
             if (triggerRenderIds.includes(id)) updateDashboard();
             else applyFilters();
         });
     });
-    
+
     document.getElementById('reset-global-filters-btn')?.addEventListener('click', () => {
-        if(document.getElementById('filter-stoppoint')) document.getElementById('filter-stoppoint').value = "ALL";
-        if(document.getElementById('filter-type')) document.getElementById('filter-type').value = "ALL";
-        if(document.getElementById('filter-start')) document.getElementById('filter-start').value = "";
-        if(document.getElementById('filter-end')) document.getElementById('filter-end').value = "";
+        if (document.getElementById('filter-stoppoint')) document.getElementById('filter-stoppoint').value = "ALL";
+        if (document.getElementById('filter-type')) document.getElementById('filter-type').value = "ALL";
+        if (document.getElementById('filter-start')) document.getElementById('filter-start').value = "";
+        if (document.getElementById('filter-end')) document.getElementById('filter-end').value = "";
         applyFilters();
     });
 }
 
 function loadData() {
-    Papa.parse(SHEET_URL, {
+    Papa.parse('/api/data', {
         download: true,
         header: true,
         skipEmptyLines: true,
-        complete: function(results) {
+        complete: function (results) {
             processData(results.data);
             document.getElementById('loading').style.display = 'none';
         },
-        error: function(err) {
+        error: function (err, file, inputElem, reason) {
             console.error("Lỗi tải dữ liệu", err);
             document.getElementById('loading').style.display = 'none';
+            if (reason && reason.includes('401')) {
+                // Session expired or invalid
+                localStorage.removeItem('ghn_user');
+                location.reload();
+            }
         }
     });
 }
 
 function processData(data) {
     rawData = data.map(row => {
-        const dateStr = row.dt ? row.dt.substring(0,10) : ""; 
+        const dateStr = row.dt ? row.dt.substring(0, 10) : "";
         return {
             date: dateStr,
             hour: (row.gio_hieu_chinh || "").padStart(5, '0'),
@@ -170,12 +180,12 @@ function processData(data) {
     const dates = [...new Set(rawData.map(d => d.date))].sort();
     const types = [...new Set(rawData.map(d => d.type))].sort();
     const vehicles = [...new Set(rawData.map(d => d.vehicle))].filter(v => v && v !== "0.00E+00").sort();
-    
+
     const populate = (id, arr, allLabel) => {
         const el = document.getElementById(id);
-        if(!el) return;
-        el.innerHTML = `<option value="ALL">${allLabel}</option>`;
-        arr.forEach(a => el.innerHTML += `<option value="${a}">${a}</option>`);
+        if (!el) return;
+        el.innerHTML = `<option value="ALL">${escapeHTML(allLabel)}</option>`;
+        arr.forEach(a => el.innerHTML += `<option value="${escapeHTML(a)}">${escapeHTML(a)}</option>`);
     };
 
     populate('filter-stoppoint', stoppoints, 'Tất cả kho');
@@ -188,7 +198,7 @@ function processData(data) {
     populate('veh-hour-day2', dates, 'Chọn ngày 2');
 
     // Advanced hour dropdowns
-    const hoursArr = Array.from({length: 24}, (_, i) => i.toString().padStart(2, '0') + ':00');
+    const hoursArr = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0') + ':00');
     populate('chart-filter-hour-from', hoursArr, '00h');
     populate('chart-filter-hour-to', hoursArr, '23h');
 
@@ -237,22 +247,22 @@ function updateDashboard() {
     // 1. KPIs
     const totalIn = filteredData.filter(d => d.type === "Nhập").length;
     const totalOut = filteredData.filter(d => d.type === "Xuất").length;
-    
-    if(document.getElementById('kpi-in')) document.getElementById('kpi-in').textContent = totalIn.toLocaleString('vi-VN');
-    if(document.getElementById('kpi-out')) document.getElementById('kpi-out').textContent = totalOut.toLocaleString('vi-VN');
-    
+
+    if (document.getElementById('kpi-in')) document.getElementById('kpi-in').textContent = totalIn.toLocaleString('vi-VN');
+    if (document.getElementById('kpi-out')) document.getElementById('kpi-out').textContent = totalOut.toLocaleString('vi-VN');
+
     // Total weight (already in tons)
     const weightIn = filteredData.filter(d => d.type === "Nhập").reduce((s, d) => s + d.weight, 0);
     const weightOut = filteredData.filter(d => d.type === "Xuất").reduce((s, d) => s + d.weight, 0);
-    
-    if(document.getElementById('kpi-peak')) document.getElementById('kpi-peak').textContent = (weightIn+weightOut).toLocaleString('vi-VN', {maximumFractionDigits:1}) + "t";
-    if(document.getElementById('kpi-type')) document.getElementById('kpi-type').textContent = (totalIn+totalOut).toLocaleString('vi-VN');
-    
+
+    if (document.getElementById('kpi-peak')) document.getElementById('kpi-peak').textContent = (weightIn + weightOut).toLocaleString('vi-VN', { maximumFractionDigits: 1 }) + "t";
+    if (document.getElementById('kpi-type')) document.getElementById('kpi-type').textContent = (totalIn + totalOut).toLocaleString('vi-VN');
+
     // Group by hour
     const hours = {};
     filteredData.forEach(d => {
-        if(!hours[d.hour]) hours[d.hour] = { in: 0, out: 0 };
-        if(d.type === "Nhập") hours[d.hour].in++;
+        if (!hours[d.hour]) hours[d.hour] = { in: 0, out: 0 };
+        if (d.type === "Nhập") hours[d.hour].in++;
         else hours[d.hour].out++;
     });
     const hourLabels = Object.keys(hours).sort();
@@ -263,23 +273,23 @@ function updateDashboard() {
         { label: 'Nhập', data: hourInData, backgroundColor: '#f26522' },
         { label: 'Xuất', data: hourOutData, backgroundColor: '#00467f' }
     ]);
-    
+
     // Alerts Logic (Basic >30% calc)
     if (hourLabels.length > 0) {
-        const avg = (totalIn+totalOut) / hourLabels.length;
+        const avg = (totalIn + totalOut) / hourLabels.length;
         let spikeCount = 0;
         hourLabels.forEach(h => {
             if (hours[h].in + hours[h].out > avg * 1.3) spikeCount++;
         });
-        if(document.getElementById('alert-hourly-count')) document.getElementById('alert-hourly-count').textContent = spikeCount.toLocaleString('vi-VN');
+        if (document.getElementById('alert-hourly-count')) document.getElementById('alert-hourly-count').textContent = spikeCount.toLocaleString('vi-VN');
     }
 
     // 2. vehicleChart: Phân bố Trọng tải Xe
     const weightBuckets = { '< 1.5 tấn': 0, '1.5 - 3.5 tấn': 0, '3.5 - 7 tấn': 0, '> 7 tấn': 0 };
     filteredData.forEach(d => {
-        if(d.capacity < 1500) weightBuckets['< 1.5 tấn']++;
-        else if(d.capacity < 3500) weightBuckets['1.5 - 3.5 tấn']++;
-        else if(d.capacity < 7000) weightBuckets['3.5 - 7 tấn']++;
+        if (d.capacity < 1500) weightBuckets['< 1.5 tấn']++;
+        else if (d.capacity < 3500) weightBuckets['1.5 - 3.5 tấn']++;
+        else if (d.capacity < 7000) weightBuckets['3.5 - 7 tấn']++;
         else weightBuckets['> 7 tấn']++;
     });
     createChart('vehicleChart', 'doughnut', Object.keys(weightBuckets), [{
@@ -290,8 +300,8 @@ function updateDashboard() {
     // 3. dailyChart: Xu hướng Nhập / Xuất theo Ngày
     const dayStats = {};
     filteredData.forEach(d => {
-        if(!dayStats[d.date]) dayStats[d.date] = { in: 0, out: 0, weight: 0, hours: {}, vehicles: {} };
-        if(d.type === "Nhập") dayStats[d.date].in++;
+        if (!dayStats[d.date]) dayStats[d.date] = { in: 0, out: 0, weight: 0, hours: {}, vehicles: {} };
+        if (d.type === "Nhập") dayStats[d.date].in++;
         else dayStats[d.date].out++;
         dayStats[d.date].weight += d.weight;
         dayStats[d.date].hours[d.hour] = (dayStats[d.date].hours[d.hour] || 0) + 1;
@@ -306,10 +316,10 @@ function updateDashboard() {
     // 4. laneChart: Phân tích theo Kho (Tuyến)
     const lanes = {};
     filteredData.forEach(d => {
-        if(!lanes[d.stoppoint]) lanes[d.stoppoint] = 0;
+        if (!lanes[d.stoppoint]) lanes[d.stoppoint] = 0;
         lanes[d.stoppoint]++;
     });
-    const sortedLanes = Object.entries(lanes).sort((a,b) => b[1] - a[1]).slice(0, 5);
+    const sortedLanes = Object.entries(lanes).sort((a, b) => b[1] - a[1]).slice(0, 5);
     createChart('laneChart', 'bar', sortedLanes.map(l => l[0].replace('Kho Trung Chuyển', 'KTC')), [{
         label: 'Số lượng xe',
         data: sortedLanes.map(l => l[1]),
@@ -324,31 +334,31 @@ function updateDashboard() {
             const stat = dayStats[date];
             const total = stat.in + stat.out;
             const weightTons = stat.weight.toFixed(1);
-            
+
             let peakHour = "-"; let maxH = 0;
-            for(let h in stat.hours) { if(stat.hours[h] > maxH) { maxH = stat.hours[h]; peakHour = h; } }
-            
+            for (let h in stat.hours) { if (stat.hours[h] > maxH) { maxH = stat.hours[h]; peakHour = h; } }
+
             let topV = "-"; let maxV = 0;
-            for(let v in stat.vehicles) { 
-                if(v && v !== "0.00E+00" && stat.vehicles[v] > maxV) { maxV = stat.vehicles[v]; topV = v; } 
+            for (let v in stat.vehicles) {
+                if (v && v !== "0.00E+00" && stat.vehicles[v] > maxV) { maxV = stat.vehicles[v]; topV = v; }
             }
-            
+
             let trend = "-";
             if (idx > 0) {
-                const prevTotal = dayStats[dayLabels[idx-1]].in + dayStats[dayLabels[idx-1]].out;
+                const prevTotal = dayStats[dayLabels[idx - 1]].in + dayStats[dayLabels[idx - 1]].out;
                 if (total > prevTotal) trend = '<span style="color:var(--green)">▲ Tăng</span>';
                 else if (total < prevTotal) trend = '<span style="color:var(--red)">▼ Giảm</span>';
             }
 
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td>${date}</td>
+                <td>${escapeHTML(date)}</td>
                 <td>${stat.in.toLocaleString('vi-VN')}</td>
                 <td>${stat.out.toLocaleString('vi-VN')}</td>
                 <td style="font-weight:700; color:var(--accent)">${total.toLocaleString('vi-VN')}</td>
-                <td>${stat.weight.toLocaleString('vi-VN', {maximumFractionDigits:1})}</td>
-                <td>${peakHour}</td>
-                <td>${topV}</td>
+                <td>${stat.weight.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}</td>
+                <td>${escapeHTML(peakHour)}</td>
+                <td>${escapeHTML(topV)}</td>
                 <td>${trend}</td>
             `;
             tbody.appendChild(tr);
@@ -359,12 +369,12 @@ function updateDashboard() {
     const heatTable = document.getElementById('heatmap-table');
     if (heatTable) {
         heatTable.innerHTML = '';
-        
+
         // Build header
         const thead = document.createElement('tr');
         thead.innerHTML = '<th>Ngày</th>';
-        const allHours = Array.from({length: 24}, (_, i) => i.toString().padStart(2, '0') + ':00');
-        allHours.forEach(h => { thead.innerHTML += `<th>${h.substring(0,2)}h</th>`; });
+        const allHours = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0') + ':00');
+        allHours.forEach(h => { thead.innerHTML += `<th>${escapeHTML(h).substring(0, 2)}h</th>`; });
         heatTable.appendChild(thead);
 
         const heatCounts = {};
@@ -385,7 +395,7 @@ function updateDashboard() {
         // Build rows
         dayLabels.forEach(date => {
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td style="font-weight:600">${date}</td>`;
+            tr.innerHTML = `<td style="font-weight:600">${escapeHTML(date)}</td>`;
             allHours.forEach(h => {
                 const count = heatCounts[date]?.[h] || 0;
                 const intensity = maxCount > 0 ? count / maxCount : 0;
@@ -418,16 +428,16 @@ function updateDashboard() {
 
     const detailHourStats = {};
     const detailWeightBuckets = { '< 1.5 tấn': 0, '1.5 - 3.5 tấn': 0, '3.5 - 7 tấn': 0, '> 7 tấn': 0 };
-    
-    hourLabels.forEach(h => detailHourStats[h] = {in:0, out:0});
+
+    hourLabels.forEach(h => detailHourStats[h] = { in: 0, out: 0 });
     detailData.forEach(d => {
-        if(detailHourStats[d.hour]) {
-            if(d.type === "Nhập") detailHourStats[d.hour].in++;
+        if (detailHourStats[d.hour]) {
+            if (d.type === "Nhập") detailHourStats[d.hour].in++;
             else detailHourStats[d.hour].out++;
         }
-        if(d.capacity < 1500) detailWeightBuckets['< 1.5 tấn']++;
-        else if(d.capacity < 3500) detailWeightBuckets['1.5 - 3.5 tấn']++;
-        else if(d.capacity < 7000) detailWeightBuckets['3.5 - 7 tấn']++;
+        if (d.capacity < 1500) detailWeightBuckets['< 1.5 tấn']++;
+        else if (d.capacity < 3500) detailWeightBuckets['1.5 - 3.5 tấn']++;
+        else if (d.capacity < 7000) detailWeightBuckets['3.5 - 7 tấn']++;
         else detailWeightBuckets['> 7 tấn']++;
     });
 
@@ -472,20 +482,20 @@ function updateDashboard() {
         dayLabels.forEach(d => {
             const dayGHN = filteredData.filter(x => x.date === d && (x.partner === "GHN" || x.partner === "NỘI BỘ" || x.partner.toLowerCase().includes("sorting"))).length;
             const dayNCC = (dayStats[d].in + dayStats[d].out) - dayGHN;
-            partnerTable.innerHTML += `<tr><td>${d}</td><td style="color:#f26522; font-weight:bold">${dayGHN}</td><td style="color:#00467f; font-weight:bold">${dayNCC}</td><td>${dayGHN+dayNCC}</td></tr>`;
+            partnerTable.innerHTML += `<tr><td>${escapeHTML(d)}</td><td style="color:#f26522; font-weight:bold">${dayGHN}</td><td style="color:#00467f; font-weight:bold">${dayNCC}</td><td>${dayGHN + dayNCC}</td></tr>`;
         });
     }
 
     // ==========================================
     // TAB: SẢN LƯỢNG & KG
     // ==========================================
-    const prodTotalKg = filteredData.reduce((s,d) => s + d.weight, 0);
-    if(document.getElementById('prod-total-kg')) document.getElementById('prod-total-kg').textContent = prodTotalKg.toLocaleString('vi-VN', {maximumFractionDigits:1});
-    if(document.getElementById('prod-avg-kg')) document.getElementById('prod-avg-kg').textContent = (prodTotalKg / (dayLabels.length||1)).toLocaleString('vi-VN', {maximumFractionDigits:1});
-    if(document.getElementById('prod-avg-per-truck')) document.getElementById('prod-avg-per-truck').textContent = (prodTotalKg / (filteredData.length||1)).toLocaleString('vi-VN', {maximumFractionDigits:1});
+    const prodTotalKg = filteredData.reduce((s, d) => s + d.weight, 0);
+    if (document.getElementById('prod-total-kg')) document.getElementById('prod-total-kg').textContent = prodTotalKg.toLocaleString('vi-VN', { maximumFractionDigits: 1 });
+    if (document.getElementById('prod-avg-kg')) document.getElementById('prod-avg-kg').textContent = (prodTotalKg / (dayLabels.length || 1)).toLocaleString('vi-VN', { maximumFractionDigits: 1 });
+    if (document.getElementById('prod-avg-per-truck')) document.getElementById('prod-avg-per-truck').textContent = (prodTotalKg / (filteredData.length || 1)).toLocaleString('vi-VN', { maximumFractionDigits: 1 });
     let peakDay = "-"; let maxDayW = 0;
-    dayLabels.forEach(d => { if(dayStats[d].weight > maxDayW) { maxDayW = dayStats[d].weight; peakDay = d; } });
-    if(document.getElementById('prod-peak-day')) document.getElementById('prod-peak-day').textContent = peakDay;
+    dayLabels.forEach(d => { if (dayStats[d].weight > maxDayW) { maxDayW = dayStats[d].weight; peakDay = d; } });
+    if (document.getElementById('prod-peak-day')) document.getElementById('prod-peak-day').textContent = peakDay;
 
     const prodDayFilter = document.getElementById('prod-day-filter')?.value || "ALL";
     let prodData = filteredData;
@@ -497,10 +507,10 @@ function updateDashboard() {
 
     const weightByCap = { '< 1.5 tấn': 0, '1.5 - 3.5 tấn': 0, '3.5 - 7 tấn': 0, '> 7 tấn': 0 };
     prodData.forEach(d => {
-        if(d.capacity < 1500) weightByCap['< 1.5 tấn']+= d.weight;
-        else if(d.capacity < 3500) weightByCap['1.5 - 3.5 tấn']+= d.weight;
-        else if(d.capacity < 7000) weightByCap['3.5 - 7 tấn']+= d.weight;
-        else weightByCap['> 7 tấn']+= d.weight;
+        if (d.capacity < 1500) weightByCap['< 1.5 tấn'] += d.weight;
+        else if (d.capacity < 3500) weightByCap['1.5 - 3.5 tấn'] += d.weight;
+        else if (d.capacity < 7000) weightByCap['3.5 - 7 tấn'] += d.weight;
+        else weightByCap['> 7 tấn'] += d.weight;
     });
     createChart('prodVehicleKgChart', 'doughnut', Object.keys(weightByCap), [{
         data: Object.values(weightByCap).map(w => w.toFixed(1)), backgroundColor: ['#00cec9', '#6c5ce7', '#fdcb6e', '#ff7675']
@@ -508,7 +518,7 @@ function updateDashboard() {
 
     const hourWeight = {};
     prodData.forEach(d => {
-        if(!hourWeight[d.hour]) hourWeight[d.hour] = 0;
+        if (!hourWeight[d.hour]) hourWeight[d.hour] = 0;
         hourWeight[d.hour] += d.weight;
     });
     createChart('prodHourChart', 'bar', hourLabels, [
@@ -523,27 +533,27 @@ function updateDashboard() {
             const w = hourWeight[h] || 0;
             const v = prodData.filter(d => d.hour === h).length;
             const pct = totalW > 0 ? ((w / totalW) * 100).toFixed(1) : 0;
-            prodHourTable.innerHTML += `<tr><td>${h.substring(0,2)}h</td><td>${v.toLocaleString('vi-VN')}</td><td style="color:var(--orange)">${w.toLocaleString('vi-VN', {maximumFractionDigits:1})}</td><td>${pct}%</td></tr>`;
+            prodHourTable.innerHTML += `<tr><td>${escapeHTML(h).substring(0, 2)}h</td><td>${v.toLocaleString('vi-VN')}</td><td style="color:var(--orange)">${w.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}</td><td>${pct}%</td></tr>`;
         });
     }
 
     // ==========================================
     // TAB: CẢNH BÁO
     // ==========================================
-    if(document.getElementById('alert-total-in')) document.getElementById('alert-total-in').textContent = totalIn.toLocaleString('vi-VN');
-    if(document.getElementById('alert-total-out')) document.getElementById('alert-total-out').textContent = totalOut.toLocaleString('vi-VN');
-    if(document.getElementById('alert-total-kg')) document.getElementById('alert-total-kg').textContent = (weightIn+weightOut).toLocaleString('vi-VN', {maximumFractionDigits:1});
-    if(document.getElementById('alert-avg-kg')) document.getElementById('alert-avg-kg').textContent = ((weightIn+weightOut) / (dayLabels.length||1)).toLocaleString('vi-VN', {maximumFractionDigits:1});
+    if (document.getElementById('alert-total-in')) document.getElementById('alert-total-in').textContent = totalIn.toLocaleString('vi-VN');
+    if (document.getElementById('alert-total-out')) document.getElementById('alert-total-out').textContent = totalOut.toLocaleString('vi-VN');
+    if (document.getElementById('alert-total-kg')) document.getElementById('alert-total-kg').textContent = (weightIn + weightOut).toLocaleString('vi-VN', { maximumFractionDigits: 1 });
+    if (document.getElementById('alert-avg-kg')) document.getElementById('alert-avg-kg').textContent = ((weightIn + weightOut) / (dayLabels.length || 1)).toLocaleString('vi-VN', { maximumFractionDigits: 1 });
 
     const peakTable = document.getElementById('peak-hour-table');
     if (peakTable) {
         peakTable.innerHTML = '';
-        const avgTotal = (totalIn+totalOut) / (hourLabels.length||1);
+        const avgTotal = (totalIn + totalOut) / (hourLabels.length || 1);
         dayLabels.forEach(date => {
             let peakHour = "-"; let maxH = 0;
-            for(let h in dayStats[date].hours) { if(dayStats[date].hours[h] > maxH) { maxH = dayStats[date].hours[h]; peakHour = h; } }
+            for (let h in dayStats[date].hours) { if (dayStats[date].hours[h] > maxH) { maxH = dayStats[date].hours[h]; peakHour = h; } }
             if (maxH > avgTotal * 1.3) {
-                peakTable.innerHTML += `<tr><td>${date}</td><td style="color:var(--red)">${peakHour}</td><td>${maxH.toLocaleString('vi-VN')}</td><td><span style="color:var(--red)">Vượt mức</span></td></tr>`;
+                peakTable.innerHTML += `<tr><td>${escapeHTML(date)}</td><td style="color:var(--red)">${escapeHTML(peakHour)}</td><td>${maxH.toLocaleString('vi-VN')}</td><td><span style="color:var(--red)">Vượt mức</span></td></tr>`;
             }
         });
     }
